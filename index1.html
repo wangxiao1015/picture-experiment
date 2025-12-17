@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图片偏好排序与选择实验</title>
+    <style>
+        /* ========== 基础与全局样式 ========== */
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            line-height: 1.6;
+        }
+        #experiment-container {
+            max-width: 1200px;
+            margin: 20px auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            padding: 0;
+        }
+
+        /* ========== 头部标题区域 ========== */
+        .header {
+            background: linear-gradient(135deg, #4a69bd 0%, #2d3a8c 100%);
+            color: white;
+            padding: 25px 30px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0 0 8px 0;
+            font-size: 1.8em;
+        }
+        .header p {
+            margin: 0;
+            opacity: 0.9;
+            font-size: 0.95em;
+        }
+
+        /* ========== 主内容区通用样式 ========== */
+        .main-content {
+            padding: 30px;
+        }
+        .stage-title {
+            font-size: 1.5em;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .instructions {
+            background-color: #f8f9fa;
+            border-left: 4px solid #4a69bd;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 0 8px 8px 0;
+        }
+        .instructions p {
+            margin: 10px 0;
+        }
+
+        /* ========== 排序任务专属布局 ========== */
+        .sorting-interface {
+            display: flex;
+            gap: 30px;
+            margin-top: 20px;
+        }
+        @media (max-width: 1000px) {
+            .sorting-interface {
+                flex-direction: column;
+            }
+        }
+
+        /* 排序区与图片池的通用面板样式 */
+        .panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-title {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2c3e50;
+            padding: 15px 0 10px;
+            text-align: center;
+            border-bottom: 2px solid #eee;
+            margin-bottom: 15px;
+        }
+
+        /* 网格容器 */
+        .grid-container {
+            flex: 1;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 15px;
+            padding: 20px;
+            background-color: #f8fafc;
+            border-radius: 12px;
+            min-height: 500px;
+        }
+
+        /* ========== 排序槽样式 ========== */
+        .rank-slot {
+            background: white;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+            border: 2px solid #d1d9e6;
+        }
+        .rank-slot.empty {
+            border-style: dashed;
+            background-color: #f8fafc;
+        }
+        .rank-slot.filled {
+            border-color: #38b2ac;
+            border-style: solid;
+        }
+        .rank-slot.drag-over {
+            border-color: #f56565;
+            background-color: #fff5f5;
+            transform: scale(1.02);
+        }
+        .slot-header {
+            padding: 10px 5px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.95);
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .rank-number {
+            font-size: 1.4em;
+            font-weight: 800;
+            color: #2c3e50;
+            line-height: 1;
+        }
+        .rank-text {
+            font-size: 0.75em;
+            color: #718096;
+            margin-top: 3px;
+        }
+        .slot-image {
+            flex: 1;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            min-height: 120px;
+        }
+
+        /* ========== 可拖拽图片样式 ========== */
+        .draggable-img {
+            border-radius: 8px;
+            cursor: grab;
+            transition: all 0.3s ease;
+            background-size: cover;
+            background-position: center;
+            box-shadow: 0 4px 8px rgba(66, 153, 225, 0.2);
+            border: 3px solid #4299e1;
+        }
+        .draggable-img.in-pool:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 15px rgba(66, 153, 225, 0.3);
+            border-color: #3182ce;
+        }
+        .draggable-img.dragging {
+            opacity: 0.8;
+            cursor: grabbing;
+            transform: scale(1.05) rotate(2deg);
+            box-shadow: 0 12px 20px rgba(0, 0, 0, 0.15);
+            z-index: 10000;
+            position: relative;
+        }
+        .draggable-img.in-slot {
+            border-color: #38b2ac;
+            box-shadow: 0 4px 10px rgba(56, 178, 172, 0.3);
+        }
+
+        /* ========== 选择任务样式 ========== */
+        .choice-options-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 25px;
+            margin: 30px 0;
+        }
+        .choice-option {
+            width: 150px;
+            height: 210px;
+            border-radius: 10px;
+            cursor: pointer;
+            background-size: cover;
+            background-position: center;
+            border: 4px solid transparent;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+        }
+        .choice-option:hover {
+            transform: scale(1.08);
+            border-color: #9f7aea;
+        }
+        .choice-option.selected {
+            border-color: #00b5d8;
+            box-shadow: 0 0 0 4px rgba(0, 181, 216, 0.3);
+            transform: scale(1.05);
+        }
+
+        /* ========== 控制与进度区域 ========== */
+        .control-area {
+            text-align: center;
+            padding: 25px;
+            background-color: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            margin-top: 20px;
+        }
+        .progress-info {
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #2b6cb0;
+            padding: 12px 25px;
+            background-color: #ebf8ff;
+            border-radius: 50px;
+            display: inline-block;
+            margin-bottom: 20px;
+            border: 1px solid #bee3f8;
+        }
+        .progress-info.complete {
+            background-color: #f0fff4;
+            color: #276749;
+            border-color: #c6f6d5;
+        }
+
+        /* ========== 按钮样式 ========== */
+        .action-button {
+            background: linear-gradient(135deg, #4a69bd 0%, #2d3a8c 100%);
+            color: white;
+            border: none;
+            padding: 16px 40px;
+            font-size: 1.1em;
+            font-weight: bold;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(74, 105, 189, 0.3);
+        }
+        .action-button:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 7px 18px rgba(74, 105, 189, 0.4);
+        }
+        .action-button:active:not(:disabled) {
+            transform: translateY(-1px);
+        }
+        .action-button:disabled {
+            background: linear-gradient(135deg, #cbd5e0 0%, #a0aec0 100%);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* ========== 完成页面样式 ========== */
+        .completion-screen {
+            text-align: center;
+            padding: 60px 30px;
+        }
+        .completion-icon {
+            font-size: 4em;
+            color: #38a169;
+            margin-bottom: 20px;
+        }
+        .data-summary {
+            background: #f7fafc;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 30px auto;
+            max-width: 600px;
+            text-align: left;
+            border: 1px solid #e2e8f0;
+        }
+        .data-summary h3 {
+            color: #2d3748;
+            margin-top: 0;
+            border-bottom: 2px solid #4a69bd;
+            padding-bottom: 10px;
+        }
+        .download-note {
+            color: #e53e3e;
+            font-weight: bold;
+            margin-top: 30px;
+            padding: 15px;
+            background-color: #fff5f5;
+            border-radius: 8px;
+            border-left: 4px solid #e53e3e;
+        }
+    </style>
+</head>
+<body>
+    <!-- 实验的主容器，所有内容动态加载于此 -->
+    <div id="experiment-container"></div>
+
+    <script>
+        // ==================== 实验配置与全局状态 ====================
+        const CONFIG = {
+            // 您的12张图片URL
+            imageUrls: [
+                'https://ucdn.credamo.com/material/5Lm04zD7/c05ff391558c4723b8b93c45e62ccafa.png',
+                'https://ucdn.credamo.com/material/5Lm04zD7/420bb5f7c9bd4baba2b4ea61c57ef726.png',
+                'https://ucdn.credamo.com/material/5Lm04zD7/8fe2dcc5026940399e58b5a2f833b0fb.png',
+                'https://ucdn.credamo.com/material/5Lm04zD7/5ef2d2a4c37a45d397c0f99784b36e59.png',
+                'https://ucdn.credamo.com/material/5Lm04zD7/47120b850b5f4c3e9ee593b6be81bf20.png',
+                'https://ucdn.credamo.com/material/5Lm04zD7/f23c21a8f36b46438f547a231756078f.png',
+                'https://ucdn.credamo.com/material/5Lm04zD7/0884988daf3f42538b28007df973d8f4.png',
+                'https://ucdn.credamo.com/material/5Lm04zD7/922fe38e3f8b4888936c6c3f1178c831.jpg',
+                'https://ucdn.credamo.com/material/5Lm04zD7/acddc15b564b490c8cd40c41c6b66b2d.png',
+                'https://ucdn.credamo.com/material/5Lm04zD7/570a199c92664ea0b188a86969e4cb71.png',
+                'https://ucdn.credamo.com/material/5Lm04zD7/71bac24d836c4acebf76263c3d6d8bf1.png',
+                'https://ucdn.credamo.com/material/5Lm04zD7/69233d56ddea42e3a493564e0fa8b1bc.png'
+            ],
+            // 排序槽位定义
+            rankSlots: [
+                { rank: 1, text: '最喜欢' },
+                { rank: 2, text: '第2喜欢' },
+                { rank: 3, text: '第3喜欢' },
+                { rank: 4, text: '第4喜欢' },
+                { rank: 5, text: '第5喜欢' },
+                { rank: 6, text: '第6喜欢' },
+                { rank: 7, text: '第7喜欢' },
+                { rank: 8, text: '第8喜欢' },
+                { rank: 9, text: '第9喜欢' },
+                { rank: 10, text: '第10喜欢' },
+                { rank: 11, text: '第11喜欢' },
+                { rank: 12, text: '最不喜欢' }
+            ]
+        };
+
+        // 全局实验数据对象
+        const EXPERIMENT = {
+            // === 时间记录 ===
+            timestamps: {
+                experimentStart: null,      // 实验开始
+                sortingStart: null,         // 排序阶段开始
+                sortingEnd: null,           // 排序阶段结束
+                choiceStart: null,          // 选择阶段开始
+                choiceEnd: null             // 选择阶段结束
+            },
+            // === 核心结果 ===
+            finalRanking: new Array(12).fill(null), // 记录每张图片的最终排名(1-12)，null表示未排序
+            selectedImageId: null,          // 被选为封面的图片ID (0-11)
+            // === 过程数据 ===
+            dragEvents: [],                 // 记录每次拖拽事件（可选）
+            isSortingComplete: false        // 排序是否完成标记
+        };
+
+        // 当前实验阶段
+        let currentStage = 'instructions'; // instructions, sorting, choice, finish
+
+        // ==================== 工具函数 ====================
+        /**
+         * 将数据保存为JSON文件并触发下载
+         * @param {Object} data - 要保存的数据对象
+         * @param {string} filename - 文件名（可选）
+         */
+        function saveDataAsJSON(data, filename = null) {
+            // 生成带有时间戳的默认文件名
+            if (!filename) {
+                const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+                filename = `实验数据_${timestamp}.json`;
+            }
+
+            // 创建数据字符串
+            const dataStr = JSON.stringify(data, null, 2); // 缩进2格，方便阅读
+            const dataBlob = new Blob([dataStr], { type: 'application/json' });
+
+            // 创建下载链接并触发点击
+            const downloadUrl = URL.createObjectURL(dataBlob);
+            const downloadLink = document.createElement('a');
+            downloadLink.href = downloadUrl;
+            downloadLink.download = filename;
+
+            // 添加到页面，点击，然后清理
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+
+            // 释放内存
+            setTimeout(() => URL.revokeObjectURL(downloadUrl), 100);
+        }
+
+        /**
+         * 准备最终要保存的数据
+         */
+        function prepareFinalData() {
+            // 计算各阶段耗时（单位：秒）
+            const sortingDuration = EXPERIMENT.timestamps.sortingEnd && EXPERIMENT.timestamps.sortingStart ?
+                (EXPERIMENT.timestamps.sortingEnd - EXPERIMENT.timestamps.sortingStart) / 1000 : null;
+            const choiceDuration = EXPERIMENT.timestamps.choiceEnd && EXPERIMENT.timestamps.choiceStart ?
+                (EXPERIMENT.timestamps.choiceEnd - EXPERIMENT.timestamps.choiceStart) / 1000 : null;
+            const totalDuration = EXPERIMENT.timestamps.experimentStart ?
+                (Date.now() - EXPERIMENT.timestamps.experimentStart) / 1000 : null;
+
+            // 构建最终数据对象
+            return {
+                // 基本信息
+                participant_id: `anonymous_${Date.now()}`,
+                completion_time: new Date().toISOString(),
+
+                // 时间数据
+                timestamps: {
+                    experiment_start: EXPERIMENT.timestamps.experimentStart,
+                    sorting_start: EXPERIMENT.timestamps.sortingStart,
+                    sorting_end: EXPERIMENT.timestamps.sortingEnd,
+                    choice_start: EXPERIMENT.timestamps.choiceStart,
+                    choice_end: EXPERIMENT.timestamps.choiceEnd
+                },
+                durations_seconds: {
+                    sorting_stage: sortingDuration,
+                    choice_stage: choiceDuration,
+                    total_experiment: totalDuration
+                },
+
+                // 核心结果数据
+                final_ranking: EXPERIMENT.finalRanking,
+                selected_image: {
+                    id: EXPERIMENT.selectedImageId,
+                    url: EXPERIMENT.selectedImageId !== null ?
+                        CONFIG.imageUrls[EXPERIMENT.selectedImageId] : null
+                },
+
+                // 过程数据
+                drag_events_count: EXPERIMENT.dragEvents.length,
+                drag_events: EXPERIMENT.dragEvents, // 包含详细拖拽记录
+
+                // 实验配置信息
+                config: {
+                    total_images: CONFIG.imageUrls.length,
+                    image_urls: CONFIG.imageUrls
+                }
+            };
+        }
+
+        // ==================== 阶段一：显示指导语 ====================
+        function showInstructions() {
+            currentStage = 'instructions';
+            EXPERIMENT.timestamps.experimentStart = Date.now();
+
+            const html = `
+                <div class="header">
+                    <h1>图片偏好实验</h1>
+                    <p>请仔细阅读以下说明，然后开始实验</p>
+                </div>
+                <div class="main-content">
+                    <div class="instructions">
+                        <h2>实验目的</h2>
+                        <p>我们将根据您的图片喜好排序，为您制作一个专属封面的笔记本。</p>
+                        
+                        <h2>任务流程</h2>
+                        <ol>
+                            <li><strong>排序阶段</strong>：将右侧的12张图片，按照您的个人喜好，从<b>最喜欢（1）</b>到<b>最不喜欢（12）</b>拖拽到左侧的排序区。</li>
+                            <li><strong>选择阶段</strong>：完成排序后，您将从部分图片中挑选一张作为笔记本的最终封面。</li>
+                        </ol>
+                        
+                        <h2>操作说明</h2>
+                        <ul>
+                            <li><b>拖拽排序</b>：点击图片池中的图片并按住，拖拽到左侧排序区的任意位置。</li>
+                            <li><b>调整顺序</b>：您可以随时将已排序的图片拖到新的位置，或拖回图片池。</li>
+                            <li><b>完成要求</b>：必须将全部12张图片放入排序区后，才能进入下一步。</li>
+                        </ul>
+                        
+                        <p style="margin-top: 25px; color: #4a5568; font-style: italic;">
+                            建议使用 Chrome 或 Edge 浏览器，并在电脑上完成实验，以获得最佳体验。
+                        </p>
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 40px;">
+                        <button id="start-btn" class="action-button">我明白了，开始排序</button>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('experiment-container').innerHTML = html;
+            document.getElementById('start-btn').addEventListener('click', showSortingStage);
+        }
+
+        // ==================== 阶段二：排序任务 ====================
+        function showSortingStage() {
+            currentStage = 'sorting';
+            EXPERIMENT.timestamps.sortingStart = Date.now();
+
+            // 生成排序槽位的HTML
+            let slotsHTML = '';
+            CONFIG.rankSlots.forEach(slot => {
+                slotsHTML += `
+                    <div class="rank-slot empty" data-rank="${slot.rank}" id="slot-${slot.rank}">
+                        <div class="slot-header">
+                            <div class="rank-number">${slot.rank}</div>
+                            <div class="rank-text">${slot.text}</div>
+                        </div>
+                        <div class="slot-image" id="img-in-slot-${slot.rank}"></div>
+                    </div>
+                `;
+            });
+
+            // 生成图片池的HTML
+            let poolHTML = '';
+            CONFIG.imageUrls.forEach((url, index) => {
+                poolHTML += `
+                    <div class="draggable-img in-pool" 
+                         id="img-${index}"
+                         data-id="${index}"
+                         style="background-image: url('${url}')">
+                    </div>
+                `;
+            });
+
+            const html = `
+                <div class="header">
+                    <h1>第一步：图片排序</h1>
+                    <p>请从最喜欢（1）到最不喜欢（12）为图片排序</p>
+                </div>
+                <div class="main-content">
+                    <div class="sorting-interface">
+                        <!-- 左侧：排序区 -->
+                        <div class="panel">
+                            <div class="panel-title">🏆 排序区</div>
+                            <div class="grid-container" id="sorting-area">
+                                ${slotsHTML}
+                            </div>
+                        </div>
+                        
+                        <!-- 右侧：图片池 -->
+                        <div class="panel">
+                            <div class="panel-title">📚 图片池（共12张）</div>
+                            <div class="grid-container" id="image-pool">
+                                ${poolHTML}
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="control-area">
+                        <div id="progress-display" class="progress-info">已排序：0 / 12 张图片</div>
+                        <button id="continue-btn" class="action-button" disabled>完成排序，进入下一步</button>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('experiment-container').innerHTML = html;
+            
+            // 设置拖拽事件监听
+            setupDragAndDrop();
+            
+            // 设置继续按钮事件
+            document.getElementById('continue-btn').addEventListener('click', () => {
+                EXPERIMENT.timestamps.sortingEnd = Date.now();
+                showChoiceInstructions();
+            });
+            
+            // 初始更新进度显示
+            updateProgressDisplay();
+        }
+
+        // ==================== 拖拽功能实现 ====================
+        function setupDragAndDrop() {
+            let draggedElement = null;
+            let dragOffset = { x: 0, y: 0 };
+            let dragGhost = null;
+
+            // 鼠标按下：开始拖拽
+            document.addEventListener('mousedown', function(e) {
+                const imgElement = e.target.closest('.draggable-img.in-pool');
+                if (!imgElement) return;
+                
+                e.preventDefault();
+                draggedElement = imgElement;
+                
+                // 计算鼠标在元素内的偏移量
+                const rect = imgElement.getBoundingClientRect();
+                dragOffset.x = e.clientX - rect.left;
+                dragOffset.y = e.clientY - rect.top;
+                
+                // 创建拖拽时的"幽灵"图像（视觉反馈）
+                dragGhost = imgElement.cloneNode(true);
+                dragGhost.classList.add('dragging');
+                dragGhost.style.position = 'fixed';
+                dragGhost.style.left = rect.left + 'px';
+                dragGhost.style.top = rect.top + 'px';
+                dragGhost.style.width = rect.width + 'px';
+                dragGhost.style.height = rect.height + 'px';
+                dragGhost.style.pointerEvents = 'none';
+                dragGhost.style.zIndex = '10000';
+                document.body.appendChild(dragGhost);
+                
+                // 记录拖拽开始事件
+                EXPERIMENT.dragEvents.push({
+                    type: 'drag_start',
+                    imageId: parseInt(imgElement.dataset.id),
+                    timestamp: Date.now() - EXPERIMENT.timestamps.experimentStart
+                });
+            });
+
+            // 鼠标移动：更新幽灵位置和高亮目标
+            const handleMouseMove = (e) => {
+                if (!draggedElement || !dragGhost) return;
+                
+                // 更新幽灵位置
+                dragGhost.style.left = (e.clientX - dragOffset.x) + 'px';
+                dragGhost.style.top = (e.clientY - dragOffset.y) + 'px';
+                
+                // 高亮可能的目标槽位
+                document.querySelectorAll('.rank-slot').forEach(slot => {
+                    const rect = slot.getBoundingClientRect();
+                    const isOver = e.clientX >= rect.left && e.clientX <= rect.right &&
+                                  e.clientY >= rect.top && e.clientY <= rect.bottom;
+                    slot.classList.toggle('drag-over', isOver);
+                });
+            };
+
+            // 鼠标释放：处理放置
+            const handleMouseUp = (e) => {
+                if (!draggedElement) return;
+                
+                // 移除幽灵
+                if (dragGhost && dragGhost.parentNode) {
+                    document.body.removeChild(dragGhost);
+                }
+                dragGhost = null;
+                
+                // 移除所有高亮
+                document.querySelectorAll('.rank-slot.drag-over').forEach(s => {
+                    s.classList.remove('drag-over');
+                });
+                
+                // 查找放置的目标槽位
+                let targetSlot = null;
+                const slots = document.querySelectorAll('.rank-slot');
+                
+                for (const slot of slots) {
+                    const rect = slot.getBoundingClientRect();
+                    if (e.clientX >= rect.left && e.clientX <= rect.right &&
+                        e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                        targetSlot = slot;
+                        break;
+                    }
+                }
+                
+                // 如果找到目标槽位，放置图片
+                if (targetSlot) {
+                    placeImageInSlot(draggedElement, targetSlot);
+                }
+                
+                // 清理事件监听
+                document.removeEventListener('mousemove', handleMouseMove);
+                document.removeEventListener('mouseup', handleMouseUp);
+                draggedElement = null;
+            };
+
+            // 当开始拖拽时添加全局监听
+            document.addEventListener('mousedown', function startDragListener(e) {
+                const imgElement = e.target.closest('.draggable-img.in-pool');
+                if (imgElement) {
+                    document.addEventListener('mousemove', handleMouseMove);
+                    document.addEventListener('mouseup', handleMouseUp);
+                    // 一次性监听器
+                    document.addEventListener('mouseup', function removeListeners() {
+                        document.removeEventListener('mousemove', handleMouseMove);
+                        document.removeEventListener('mouseup', handleMouseUp);
+                        document.removeEventListener('mouseup', removeListeners);
+                    }, { once: true });
+                }
+            });
+        }
+
+        /**
+         * 将图片放入指定的排序槽
+         */
+        function placeImageInSlot(imgElement, slotElement) {
+            const imgId = parseInt(imgElement.dataset.id);
+            const slotRank = parseInt(slotElement.dataset.rank);
+            const slotImgElement = document.getElementById(`img-in-slot-${slotRank}`);
+            
+            // 情况1：目标槽已有图片 → 先清空
+            if (slotImgElement.style.backgroundImage) {
+                for (let i = 0; i < EXPERIMENT.finalRanking.length; i++) {
+                    if (EXPERIMENT.finalRanking[i] === slotRank) {
+                        EXPERIMENT.finalRanking[i] = null;
+                        const oldImg = document.getElementById(`img-${i}`);
+                        if (oldImg) {
+                            oldImg.classList.remove('in-slot');
+                            oldImg.classList.add('in-pool');
+                        }
+                        break;
+                    }
+                }
+            }
+            
+            // 情况2：这张图片原本已在其他槽中 → 清空原槽位
+            const oldRank = EXPERIMENT.finalRanking[imgId];
+            if (oldRank !== null) {
+                document.getElementById(`img-in-slot-${oldRank}`).style.backgroundImage = '';
+                document.getElementById(`slot-${oldRank}`).classList.remove('filled');
+                document.getElementById(`slot-${oldRank}`).classList.add('empty');
+            }
+            
+            // 放入新图片
+            EXPERIMENT.finalRanking[imgId] = slotRank;
+            imgElement.classList.remove('in-pool');
+            imgElement.classList.add('in-slot');
+            slotImgElement.style.backgroundImage = `url('${CONFIG.imageUrls[imgId]}')`;
+            slotElement.classList.remove('empty');
+            slotElement.classList.add('filled');
+            
+            // 记录拖拽完成事件
+            EXPERIMENT.dragEvents.push({
+                type: 'drop',
+                imageId: imgId,
+                fromRank: oldRank,
+                toRank: slotRank,
+                timestamp: Date.now() - EXPERIMENT.timestamps.experimentStart
+            });
+            
+            // 更新进度显示
+            updateProgressDisplay();
+        }
+
+        /**
+         * 更新排序进度显示
+         */
+        function updateProgressDisplay() {
+            const filledCount = EXPERIMENT.finalRanking.filter(rank => rank !== null).length;
+            const progressElement = document.getElementById('progress-display');
+            const continueButton = document.getElementById('continue-btn');
+            
+            if (progressElement) {
+                progressElement.textContent = `已排序：${filledCount} / 12 张图片`;
+                if (filledCount === 12) {
+                    progressElement.textContent = '✅ 排序完成！您可以继续调整，或点击下方按钮继续。';
+                    progressElement.classList.add('complete');
+                    EXPERIMENT.isSortingComplete = true;
+                } else {
+                    progressElement.classList.remove('complete');
+                    EXPERIMENT.isSortingComplete = false;
+                }
+            }
+            
+            if (continueButton) {
+                continueButton.disabled = filledCount < 12;
+            }
+        }
+
+        // ==================== 阶段三：选择任务指导语 ====================
+        function showChoiceInstructions() {
+            const html = `
+                <div class="header">
+                    <h1>第二步：选择最终封面</h1>
+                    <p>由于制作限制，您只能从以下图片中选择</p>
+                </div>
+                <div class="main-content">
+                    <div class="instructions">
+                        <h2>选择说明</h2>
+                        <p>您已经完成了12张图片的排序，非常感谢！</p>
+                        <p>现在，我们需要为您制作实体笔记本。由于库存限制，我们只能提供 <b>您排名第4到第8的5张图片</b> 作为封面备选。</p>
+                        <p>请您从这5张图片中，选择 <b>1张</b> 作为您笔记本的最终封面。</p>
+                        <p style="color: #4a5568; margin-top: 15px; padding: 10px; background: #edf2f7; border-radius: 6px;">
+                            <b>操作提示：</b> 点击您选择的图片即可选中，然后点击确认按钮。
+                        </p>
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 40px;">
+                        <button id="start-choice-btn" class="action-button">开始选择封面</button>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('experiment-container').innerHTML = html;
+            document.getElementById('start-choice-btn').addEventListener('click', showChoiceStage);
+        }
+
+        // ==================== 阶段四：选择任务 ====================
+        function showChoiceStage() {
+            currentStage = 'choice';
+            EXPERIMENT.timestamps.choiceStart = Date.now();
+
+            // 确定符合条件的图片（排名4-8）
+            const eligibleImages = [];
+            EXPERIMENT.finalRanking.forEach((rank, imgId) => {
+                if (rank >= 4 && rank <= 8) {
+                    eligibleImages.push({ imgId, rank });
+                }
+            });
+            
+            // 按排名排序
+            eligibleImages.sort((a, b) => a.rank - b.rank);
+            
+            // 生成选择项HTML
+            let choicesHTML = '';
+            eligibleImages.forEach(item => {
+                choicesHTML += `
+                    <div class="choice-option"
+                         data-id="${item.imgId}"
+                         style="background-image: url('${CONFIG.imageUrls[item.imgId]}')">
+                    </div>
+                `;
+            });
+
+            const html = `
+                <div class="header">
+                    <h1>请选择您的笔记本封面</h1>
+                    <p>点击下方您最喜欢的一张图片</p>
+                </div>
+                <div class="main-content">
+                    <p style="text-align: center; color: #4a5568; margin-bottom: 20px;">
+                        请从以下5张图片（您的第4到第8名）中选择1张：
+                    </p>
+                    
+                    <div class="choice-options-container" id="choice-container">
+                        ${choicesHTML}
+                    </div>
+                    
+                    <div id="choice-feedback" style="text-align: center; min-height: 50px; margin: 20px 0;"></div>
+                    
+                    <div class="control-area">
+                        <button id="confirm-choice-btn" class="action-button" disabled>确认选择</button>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('experiment-container').innerHTML = html;
+            
+            // 设置选择事件
+            const choiceOptions = document.querySelectorAll('.choice-option');
+            const confirmButton = document.getElementById('confirm-choice-btn');
+            const feedbackElement = document.getElementById('choice-feedback');
+            
+            choiceOptions.forEach(option => {
+                option.addEventListener('click', function() {
+                    // 取消之前的选择
+                    choiceOptions.forEach(opt => opt.classList.remove('selected'));
+                    
+                    // 标记当前选择
+                    this.classList.add('selected');
+                    
+                    // 记录选择
+                    EXPERIMENT.selectedImageId = parseInt(this.dataset.id);
+                    
+                    // 显示反馈
+                    feedbackElement.innerHTML = `
+                        <div style="color: #38a169; font-weight: bold; padding: 10px; background: #f0fff4; border-radius: 8px;">
+                            ✅ 您已选择此图片作为封面。点击下方按钮确认。
+                        </div>
+                    `;
+                    
+                    // 启用确认按钮
+                    confirmButton.disabled = false;
+                });
+            });
+            
+            // 确认按钮事件
+            confirmButton.addEventListener('click', () => {
+                EXPERIMENT.timestamps.choiceEnd = Date.now();
+                finishExperiment();
+            });
+        }
+
+        // ==================== 阶段五：完成实验 ====================
+        function finishExperiment() {
+            currentStage = 'finish';
+            
+            // 准备最终数据
+            const finalData = prepareFinalData();
+            
+            // 自动保存数据文件
+            saveDataAsJSON(finalData);
+            
+            // 显示完成界面
+            const html = `
+                <div class="header" style="background: linear-gradient(135deg, #38a169 0%, #276749 100%);">
+                    <h1>✅ 实验完成！</h1>
+                    <p>感谢您的认真参与</p>
+                </div>
+                <div class="main-content">
+                    <div class="completion-screen">
+                        <div class="completion-icon">✅</div>
+                        <h2>实验已成功完成</h2>
+                        <p>您的排序与选择数据已记录。</p>
+                        <p>我们将根据您的选择为您制作专属封面的笔记本。</p>
+                        
+                        <div class="data-summary">
+                            <h3>您的实验数据摘要</h3>
+                            <p><strong>选择的封面图片：</strong> 图片 #${EXPERIMENT.selectedImageId + 1}</p>
+                            <p><strong>排序耗时：</strong> ${((EXPERIMENT.timestamps.sortingEnd - EXPERIMENT.timestamps.sortingStart)/1000).toFixed(1)} 秒</p>
+                            <p><strong>选择耗时：</strong> ${((EXPERIMENT.timestamps.choiceEnd - EXPERIMENT.timestamps.choiceStart)/1000).toFixed(1)} 秒</p>
+                            <p><strong>总实验时间：</strong> ${((Date.now() - EXPERIMENT.timestamps.experimentStart)/1000).toFixed(1)} 秒</p>
+                            <p><strong>拖拽操作次数：</strong> ${EXPERIMENT.dragEvents.filter(e => e.type === 'drop').length} 次</p>
+                        </div>
+                        
+                        <div class="download-note">
+                            <p>📥 <strong>重要提示：</strong> 您的实验数据文件已自动下载。</p>
+                            <p>文件名通常为 <code>实验数据_日期时间.json</code>，请检查您的"下载"文件夹。</p>
+                            <p>请将此文件通过邮件或其他指定方式发送给实验主持人。</p>
+                        </div>
+                        
+                        <p style="color: #718096; margin-top: 40px; font-size: 0.9em;">
+                            您可以安全关闭此浏览器窗口。
+                        </p>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('experiment-container').innerHTML = html;
+        }
+
+        // ==================== 启动实验 ====================
+        // 页面加载完成后，显示指导语
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', showInstructions);
+        } else {
+            showInstructions();
+        }
+    </script>
+</body>
+</html>
